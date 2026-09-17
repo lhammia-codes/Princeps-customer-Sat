@@ -50,7 +50,7 @@ async def update_loan_status(loan_id: str, req: FollowupUpdateRequest):
             detail=f"Invalid followup_status. Must be one of: {valid_statuses}"
         )
 
-    update_loan_followup(
+    await update_loan_followup(
         loan_id=loan_id,
         status=req.followup_status,
         notes=req.notes,

@@ -3,9 +3,8 @@ import csv
 from datetime import datetime
 from typing import Optional, List, Any, Dict, Tuple
 from fastapi import HTTPException
-import asyncpg
 
-from app.database import get_sqlite_connection, get_pg_pool
+from app.database import get_pg_pool
 
 MANAGERS = ["Manager A", "Manager B", "Manager C"]
 
@@ -24,92 +23,106 @@ def clean_int(val: Any, default: int) -> int:
     except (ValueError, TypeError):
         return default
 
-def get_or_assign_relationship_managers(loan_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+async def get_or_assign_relationship_managers(loan_ids: List[str]) -> Dict[str, Dict[str, Any]]:
     """
-    Fetches assigned relationship managers for loan IDs, or balances and assigns
-    unassigned loans evenly across managers in SQLite.
+    Fetches assigned relationship managers for loan IDs from PostgreSQL,
+    or balances and assigns unassigned loans evenly across managers.
     """
     if not loan_ids:
         return {}
 
-    conn = get_sqlite_connection()
-    cursor = conn.cursor()
+    pool = await get_pg_pool()
 
-    placeholders = ",".join(["?"] * len(loan_ids))
-    cursor.execute(
-        f"SELECT loan_id, relationship_manager, followup_status, notes FROM loan_assignments WHERE loan_id IN ({placeholders})",
-        loan_ids
-    )
-    existing = {
-        row[0]: {
-            "relationship_manager": row[1],
-            "followup_status": row[2],
-            "notes": row[3] or ""
-        }
-        for row in cursor.fetchall()
-    }
-
-    # Count existing assignments across managers to maintain strict equality
-    cursor.execute("SELECT relationship_manager, COUNT(*) FROM loan_assignments GROUP BY relationship_manager")
-    counts = {m: 0 for m in MANAGERS}
-    for rm, cnt in cursor.fetchall():
-        if rm in counts:
-            counts[rm] = cnt
-
-    new_inserts = []
-    for lid in loan_ids:
-        if lid not in existing:
-            # Assign to manager with the fewest assigned loans
-            chosen_rm = min(MANAGERS, key=lambda m: counts[m])
-            counts[chosen_rm] += 1
-            new_inserts.append((lid, chosen_rm, 'not contacted', ''))
-            existing[lid] = {
-                "relationship_manager": chosen_rm,
-                "followup_status": "not contacted",
-                "notes": ""
-            }
-
-    if new_inserts:
-        cursor.executemany(
-            "INSERT OR IGNORE INTO loan_assignments (loan_id, relationship_manager, followup_status, notes) VALUES (?, ?, ?, ?)",
-            new_inserts
+    async with pool.acquire() as conn:
+        # Fetch existing assignments
+        rows = await conn.fetch(
+            """
+            SELECT loan_id, relationship_manager, followup_status, COALESCE(notes, '') AS notes
+            FROM loan_assignments
+            WHERE loan_id = ANY($1::text[])
+            """,
+            loan_ids
         )
-        conn.commit()
+        existing = {
+            r['loan_id']: {
+                "relationship_manager": r['relationship_manager'],
+                "followup_status": r['followup_status'],
+                "notes": r['notes']
+            }
+            for r in rows
+        }
 
-    conn.close()
+        # Count existing assignments across managers to maintain strict equality
+        count_rows = await conn.fetch(
+            "SELECT relationship_manager, COUNT(*) AS cnt FROM loan_assignments GROUP BY relationship_manager"
+        )
+        counts = {m: 0 for m in MANAGERS}
+        for r in count_rows:
+            rm = r['relationship_manager']
+            if rm in counts:
+                counts[rm] = r['cnt']
+
+        new_inserts = []
+        for lid in loan_ids:
+            if lid not in existing:
+                chosen_rm = min(MANAGERS, key=lambda m: counts[m])
+                counts[chosen_rm] += 1
+                new_inserts.append((lid, chosen_rm, 'not contacted', ''))
+                existing[lid] = {
+                    "relationship_manager": chosen_rm,
+                    "followup_status": "not contacted",
+                    "notes": ""
+                }
+
+        if new_inserts:
+            await conn.executemany(
+                """
+                INSERT INTO loan_assignments (loan_id, relationship_manager, followup_status, notes)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (loan_id) DO NOTHING
+                """,
+                new_inserts
+            )
+
     return existing
 
-def update_loan_followup(
+async def update_loan_followup(
     loan_id: str,
     status: str,
     notes: Optional[str] = None,
     manager: Optional[str] = None
 ):
-    """Updates or inserts a loan's follow-up status and notes in SQLite."""
-    conn = get_sqlite_connection()
-    cursor = conn.cursor()
+    """Updates or inserts a loan's follow-up status and notes in PostgreSQL."""
+    pool = await get_pg_pool()
 
-    cursor.execute("SELECT relationship_manager, followup_status, notes FROM loan_assignments WHERE loan_id = ?", (loan_id,))
-    row = cursor.fetchone()
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    async with pool.acquire() as conn:
+        # Check existing to preserve values if not provided
+        existing = await conn.fetchrow(
+            "SELECT relationship_manager, notes FROM loan_assignments WHERE loan_id = $1",
+            loan_id
+        )
 
-    if row:
-        rm = manager or row[0]
-        n = notes if notes is not None else row[2]
-        cursor.execute("""
-            UPDATE loan_assignments 
-            SET followup_status = ?, notes = ?, relationship_manager = ?, updated_at = ?
-            WHERE loan_id = ?
-        """, (status, n, rm, now_str, loan_id))
-    else:
-        rm = manager or "Manager A"
-        cursor.execute("""
-            INSERT INTO loan_assignments (loan_id, relationship_manager, followup_status, notes, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-        """, (loan_id, rm, status, notes or "", now_str))
-
-    conn.commit()
-    conn.close()
+        if existing:
+            rm = manager or existing['relationship_manager']
+            n = notes if notes is not None else (existing['notes'] or "")
+            await conn.execute(
+                """
+                UPDATE loan_assignments
+                SET followup_status = $1, notes = $2, relationship_manager = $3, updated_at = CURRENT_TIMESTAMP
+                WHERE loan_id = $4
+                """,
+                status, n, rm, loan_id
+            )
+        else:
+            rm = manager or "Manager A"
+            n = notes or ""
+            await conn.execute(
+                """
+                INSERT INTO loan_assignments (loan_id, relationship_manager, followup_status, notes, updated_at)
+                VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                """,
+                loan_id, rm, status, n
+            )
 
 def build_loan_query(
     start_date: Optional[str] = None,
@@ -209,10 +222,8 @@ async def fetch_and_enrich_disbursements(
     limit: int = 500,
     offset: int = 0
 ) -> List[Dict[str, Any]]:
-    """Queries loans from PostgreSQL and enriches them with SQLite assignment & follow-up data."""
-    pool = get_pg_pool()
-    if not pool:
-        raise HTTPException(status_code=500, detail="Database pool not initialized")
+    """Queries loans from PostgreSQL and enriches them with assignment & follow-up data."""
+    pool = await get_pg_pool()
 
     limit_val = clean_int(limit, 500)
     offset_val = clean_int(offset, 0)
@@ -235,7 +246,7 @@ async def fetch_and_enrich_disbursements(
             raw_items = [dict(row) for row in rows]
 
             loan_ids = [r['disbursement_loan_id'] for r in raw_items if r.get('disbursement_loan_id')]
-            rm_data = get_or_assign_relationship_managers(loan_ids)
+            rm_data = await get_or_assign_relationship_managers(loan_ids)
 
             enriched = []
             feed_filter = clean_param(feed) or "all"
@@ -252,16 +263,11 @@ async def fetch_and_enrich_disbursements(
                 item['followup_status'] = rm_info['followup_status']
                 item['followup_notes'] = rm_info['notes']
 
-                # Feed filter:
-                # - "pending": only show uncompleted loans (not contacted or sms sent)
-                # - "completed": only show contacted loans
-                # - "all": show everything
                 if feed_filter == "pending" and item['followup_status'] == "contacted":
                     continue
                 if feed_filter == "completed" and item['followup_status'] != "contacted":
                     continue
 
-                # Manager filter
                 if manager_filter and manager_filter.lower() != "all":
                     if item['relationship_manager'].lower() != manager_filter.lower():
                         continue
@@ -275,9 +281,7 @@ async def fetch_and_enrich_disbursements(
 
 async def fetch_filter_options() -> Dict[str, List[str]]:
     """Retrieves unique products and statuses from the database."""
-    pool = get_pg_pool()
-    if not pool:
-        raise HTTPException(status_code=500, detail="Database pool not initialized")
+    pool = await get_pg_pool()
 
     query_products = "SELECT DISTINCT loan_product FROM caltos_loans WHERE loan_product IS NOT NULL ORDER BY loan_product;"
     query_statuses = "SELECT DISTINCT status FROM caltos_loans WHERE status IS NOT NULL ORDER BY status;"
@@ -305,10 +309,8 @@ async def generate_loans_csv(
     manager: Optional[str] = None,
     limit: int = 5000
 ) -> Tuple[str, str]:
-    """Generates a CSV string of loans matching the requested filters along with a generated filename."""
-    pool = get_pg_pool()
-    if not pool:
-        raise HTTPException(status_code=500, detail="Database pool not initialized")
+    """Generates a CSV string of loans matching the requested filters along with a filename."""
+    pool = await get_pg_pool()
 
     limit_val = clean_int(limit, 5000)
     query, params = build_loan_query(
@@ -327,7 +329,7 @@ async def generate_loans_csv(
         raw_items = [dict(row) for row in rows]
 
     loan_ids = [r['disbursement_loan_id'] for r in raw_items if r.get('disbursement_loan_id')]
-    rm_data = get_or_assign_relationship_managers(loan_ids)
+    rm_data = await get_or_assign_relationship_managers(loan_ids)
 
     output = io.StringIO()
     writer = csv.writer(output)
