@@ -321,27 +321,72 @@
         <!-- Header / Overview -->
         <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-                <h2 class="text-xl font-bold text-slate-900">Relationship Officers Operations Dashboard</h2>
+                <div class="flex items-center space-x-3">
+                    <h2 class="text-xl font-bold text-slate-900">Relationship Officers Operations Dashboard</h2>
+                    <span id="ro-active-period-badge" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-sky-50 text-sky-700 border border-sky-200">Today</span>
+                </div>
                 <p class="text-xs text-slate-500 mt-1">Real-time assignment distribution, workload balancing, and follow-up completion tracking</p>
             </div>
-            <button onclick="refreshRODashboard()" class="px-3.5 py-2 border border-slate-300 text-xs font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition">
+            <button onclick="refreshRODashboard()" class="px-3.5 py-2 border border-slate-300 text-xs font-semibold rounded-lg text-slate-700 bg-white hover:bg-slate-50 transition flex items-center shadow-xs">
+                <svg class="w-3.5 h-3.5 mr-1.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                 Refresh RO Metrics
             </button>
+        </div>
+
+        <!-- Filter & Control Panel for RO Dashboard -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-5 mb-6 space-y-4">
+            <!-- Row 1: Quick Date Presets -->
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-1.5 overflow-x-auto py-1">
+                    <span class="text-xs font-semibold text-slate-500 mr-2 uppercase tracking-wider">Workload Period:</span>
+                    <button type="button" onclick="setROPreset('today')" id="preset-ro-today" class="ro-preset-btn px-2.5 py-1 text-xs font-medium rounded-md bg-sky-600 text-white transition">Today</button>
+                    <button type="button" onclick="setROPreset('yesterday')" id="preset-ro-yesterday" class="ro-preset-btn px-2.5 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Yesterday</button>
+                    <button type="button" onclick="setROPreset('last7')" id="preset-ro-last7" class="ro-preset-btn px-2.5 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Last 7 Days</button>
+                    <button type="button" onclick="setROPreset('thisMonth')" id="preset-ro-thisMonth" class="ro-preset-btn px-2.5 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition">This Month</button>
+                    <button type="button" onclick="setROPreset('lastMonth')" id="preset-ro-lastMonth" class="ro-preset-btn px-2.5 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Last Month</button>
+                    <button type="button" onclick="setROPreset('all')" id="preset-ro-all" class="ro-preset-btn px-2.5 py-1 text-xs font-medium rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition">All Time</button>
+                </div>
+
+                <button type="button" onclick="resetROFilters()" class="text-xs font-medium text-slate-500 hover:text-rose-600 transition flex items-center">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    Reset to Today
+                </button>
+            </div>
+
+            <!-- Row 2: Custom Date Pickers & Actions -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">From Assignment Date</label>
+                    <input type="date" id="ro-start-date" onchange="clearROPresetHighlight()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">To Assignment Date</label>
+                    <input type="date" id="ro-end-date" onchange="clearROPresetHighlight()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none">
+                </div>
+                <div>
+                    <button type="button" onclick="applyROFilter()" class="w-full py-2 px-4 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded-lg shadow-xs transition">
+                        Apply Filter
+                    </button>
+                </div>
+                <div class="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                    <span class="font-semibold text-slate-700">Workload Tracking:</span> Filter by assignment date to inspect completed outreach vs. uncompleted spillover.
+                </div>
+            </div>
         </div>
 
         <!-- RO High-Level KPI Summary Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Active Disbursed Feed</p>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Tracked Loans</p>
                 <div class="mt-3 flex items-baseline justify-between">
-                    <span id="ro-stat-pending" class="text-3xl font-extrabold text-amber-600">-</span>
-                    <span class="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Pending Contact</span>
+                    <span id="ro-stat-total" class="text-3xl font-extrabold text-slate-900">-</span>
+                    <span class="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">Distributed</span>
                 </div>
-                <p class="text-[11px] text-slate-500 mt-2">Currently in follow-up queues</p>
+                <p class="text-[11px] text-slate-500 mt-2">Assigned equally among Officers A, B, C</p>
             </div>
 
             <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Post-Disbursement Completed</p>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Workload Completed</p>
                 <div class="mt-3 flex items-baseline justify-between">
                     <span id="ro-stat-completed" class="text-3xl font-extrabold text-emerald-600">-</span>
                     <span class="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">Contacted</span>
@@ -350,26 +395,32 @@
             </div>
 
             <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Tracked Loans</p>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Workload Spillover</p>
                 <div class="mt-3 flex items-baseline justify-between">
-                    <span id="ro-stat-total" class="text-3xl font-extrabold text-slate-900">-</span>
-                    <span class="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded">Distributed</span>
+                    <span id="ro-stat-pending" class="text-3xl font-extrabold text-amber-600">-</span>
+                    <span id="ro-stat-spillover-tag" class="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded">Pending Outreach</span>
                 </div>
-                <p class="text-[11px] text-slate-500 mt-2">Split equally among A, B, C</p>
+                <p class="text-[11px] text-slate-500 mt-2">Uncontacted loans carried over</p>
             </div>
 
             <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Team Completion Rate</p>
                 <div class="mt-3 flex items-baseline justify-between">
                     <span id="ro-stat-team-rate" class="text-3xl font-extrabold text-sky-600">0%</span>
-                    <span class="text-xs font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded">Contact Rate</span>
+                    <span class="text-xs font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded">Outreach Rate</span>
                 </div>
-                <p class="text-[11px] text-slate-500 mt-2">Contacted vs total assigned</p>
+                <p id="ro-stat-spillover-rate-sub" class="text-[11px] text-slate-500 mt-2">0% spillover rate</p>
             </div>
         </div>
 
         <!-- Manager Cards Grid (Manager A, Manager B, Manager C) -->
-        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">Manager Performance & Workload Breakdown</h3>
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Manager Performance & Workload Breakdown</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Assigned volume, completed outreach, and unresolved spillover per officer</p>
+            </div>
+        </div>
+        
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             
             <!-- Manager A Card -->
@@ -385,7 +436,10 @@
                                 <span class="text-[11px] text-purple-700 bg-purple-50 px-2 py-0.5 rounded font-medium">Manager A</span>
                             </div>
                         </div>
-                        <span id="ro-card-a-rate" class="text-sm font-bold text-purple-700">0%</span>
+                        <div class="text-right">
+                            <span id="ro-card-a-rate" class="text-sm font-bold text-purple-700 block">0%</span>
+                            <span id="ro-card-a-spillover-badge" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 inline-block mt-0.5">-</span>
+                        </div>
                     </div>
 
                     <!-- Progress Bar -->
@@ -400,19 +454,24 @@
                             <span id="ro-card-a-total" class="text-lg font-bold text-slate-900">-</span>
                         </div>
                         <div>
-                            <span class="text-[11px] text-amber-600 block">Pending</span>
-                            <span id="ro-card-a-pending" class="text-lg font-bold text-amber-600">-</span>
-                        </div>
-                        <div>
                             <span class="text-[11px] text-emerald-600 block">Completed</span>
                             <span id="ro-card-a-completed" class="text-lg font-bold text-emerald-600">-</span>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-amber-600 block">Spillover</span>
+                            <span id="ro-card-a-pending" class="text-lg font-bold text-amber-600">-</span>
                         </div>
                     </div>
                 </div>
 
-                <button onclick="filterByOfficer('Manager A')" class="mt-6 w-full py-2 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold rounded-lg transition border border-purple-200">
-                    View Officer A's Queue →
-                </button>
+                <div class="mt-6 space-y-2">
+                    <button id="ro-card-a-btn-spillover" onclick="filterByOfficer('Manager A', 'pending')" class="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold rounded-lg transition border border-amber-200 flex items-center justify-center">
+                        View Spillover Queue →
+                    </button>
+                    <button id="ro-card-a-btn-completed" onclick="filterByOfficer('Manager A', 'completed')" class="w-full py-1.5 px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-medium rounded-lg transition border border-purple-200 flex items-center justify-center">
+                        View Completed
+                    </button>
+                </div>
             </div>
 
             <!-- Manager B Card -->
@@ -428,7 +487,10 @@
                                 <span class="text-[11px] text-sky-700 bg-sky-50 px-2 py-0.5 rounded font-medium">Manager B</span>
                             </div>
                         </div>
-                        <span id="ro-card-b-rate" class="text-sm font-bold text-sky-700">0%</span>
+                        <div class="text-right">
+                            <span id="ro-card-b-rate" class="text-sm font-bold text-sky-700 block">0%</span>
+                            <span id="ro-card-b-spillover-badge" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 inline-block mt-0.5">-</span>
+                        </div>
                     </div>
 
                     <!-- Progress Bar -->
@@ -443,19 +505,24 @@
                             <span id="ro-card-b-total" class="text-lg font-bold text-slate-900">-</span>
                         </div>
                         <div>
-                            <span class="text-[11px] text-amber-600 block">Pending</span>
-                            <span id="ro-card-b-pending" class="text-lg font-bold text-amber-600">-</span>
-                        </div>
-                        <div>
                             <span class="text-[11px] text-emerald-600 block">Completed</span>
                             <span id="ro-card-b-completed" class="text-lg font-bold text-emerald-600">-</span>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-amber-600 block">Spillover</span>
+                            <span id="ro-card-b-pending" class="text-lg font-bold text-amber-600">-</span>
                         </div>
                     </div>
                 </div>
 
-                <button onclick="filterByOfficer('Manager B')" class="mt-6 w-full py-2 px-3 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-lg transition border border-sky-200">
-                    View Officer B's Queue →
-                </button>
+                <div class="mt-6 space-y-2">
+                    <button id="ro-card-b-btn-spillover" onclick="filterByOfficer('Manager B', 'pending')" class="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold rounded-lg transition border border-amber-200 flex items-center justify-center">
+                        View Spillover Queue →
+                    </button>
+                    <button id="ro-card-b-btn-completed" onclick="filterByOfficer('Manager B', 'completed')" class="w-full py-1.5 px-3 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-medium rounded-lg transition border border-sky-200 flex items-center justify-center">
+                        View Completed
+                    </button>
+                </div>
             </div>
 
             <!-- Manager C Card -->
@@ -471,7 +538,10 @@
                                 <span class="text-[11px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded font-medium">Manager C</span>
                             </div>
                         </div>
-                        <span id="ro-card-c-rate" class="text-sm font-bold text-teal-700">0%</span>
+                        <div class="text-right">
+                            <span id="ro-card-c-rate" class="text-sm font-bold text-teal-700 block">0%</span>
+                            <span id="ro-card-c-spillover-badge" class="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 inline-block mt-0.5">-</span>
+                        </div>
                     </div>
 
                     <!-- Progress Bar -->
@@ -486,19 +556,24 @@
                             <span id="ro-card-c-total" class="text-lg font-bold text-slate-900">-</span>
                         </div>
                         <div>
-                            <span class="text-[11px] text-amber-600 block">Pending</span>
-                            <span id="ro-card-c-pending" class="text-lg font-bold text-amber-600">-</span>
-                        </div>
-                        <div>
                             <span class="text-[11px] text-emerald-600 block">Completed</span>
                             <span id="ro-card-c-completed" class="text-lg font-bold text-emerald-600">-</span>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-amber-600 block">Spillover</span>
+                            <span id="ro-card-c-pending" class="text-lg font-bold text-amber-600">-</span>
                         </div>
                     </div>
                 </div>
 
-                <button onclick="filterByOfficer('Manager C')" class="mt-6 w-full py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-semibold rounded-lg transition border border-teal-200">
-                    View Officer C's Queue →
-                </button>
+                <div class="mt-6 space-y-2">
+                    <button id="ro-card-c-btn-spillover" onclick="filterByOfficer('Manager C', 'pending')" class="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-semibold rounded-lg transition border border-amber-200 flex items-center justify-center">
+                        View Spillover Queue →
+                    </button>
+                    <button id="ro-card-c-btn-completed" onclick="filterByOfficer('Manager C', 'completed')" class="w-full py-1.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-medium rounded-lg transition border border-teal-200 flex items-center justify-center">
+                        View Completed
+                    </button>
+                </div>
             </div>
         </div>
     </main>
@@ -725,12 +800,121 @@
             applyFilter();
         }
 
-        function filterByOfficer(managerName) {
+        let roCurrentFilter = {
+            start_date: '',
+            end_date: '',
+            preset: 'today'
+        };
+
+        function filterByOfficer(managerName, tab = 'pending') {
+            const roStart = document.getElementById('ro-start-date')?.value || '';
+            const roEnd = document.getElementById('ro-end-date')?.value || '';
+
+            // Transfer RO date filter to feeds filter so exact same records appear in the table
+            document.getElementById('start-date').value = roStart;
+            document.getElementById('end-date').value = roEnd;
+            clearPresetHighlight();
+
             switchMainView('feeds');
             document.getElementById('manager-filter').value = managerName;
-            switchFeedTab('pending');
+            switchFeedTab(tab);
             applyFilter();
-            showToast(`Filtered queue for ${managerName}`);
+
+            const dateLabel = roStart ? (roStart === roEnd ? `for ${roStart}` : `from ${roStart} to ${roEnd}`) : 'all-time';
+            showToast(`Viewing ${managerName}'s ${tab === 'pending' ? 'spillover / pending' : 'completed'} loans (${dateLabel})`);
+        }
+
+        function setROPreset(type) {
+            const today = new Date();
+            let start = new Date();
+            let end = new Date();
+
+            document.querySelectorAll('.ro-preset-btn').forEach(btn => {
+                btn.classList.remove('bg-sky-600', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-700');
+            });
+
+            const activeBtn = document.getElementById(`preset-ro-${type}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-slate-100', 'text-slate-700');
+                activeBtn.classList.add('bg-sky-600', 'text-white');
+            }
+
+            let badgeText = "Today";
+
+            if (type === 'today') {
+                start = today;
+                end = today;
+                badgeText = `Today (${formatDate(today)})`;
+            } else if (type === 'yesterday') {
+                start.setDate(today.getDate() - 1);
+                end.setDate(today.getDate() - 1);
+                badgeText = `Yesterday (${formatDate(start)})`;
+            } else if (type === 'last7') {
+                start.setDate(today.getDate() - 7);
+                end = today;
+                badgeText = `Last 7 Days (${formatDate(start)} to ${formatDate(end)})`;
+            } else if (type === 'thisMonth') {
+                start = new Date(today.getFullYear(), today.getMonth(), 1);
+                end = today;
+                badgeText = `This Month (${formatDate(start)} to ${formatDate(end)})`;
+            } else if (type === 'lastMonth') {
+                start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                end = new Date(today.getFullYear(), today.getMonth(), 0);
+                badgeText = `Last Month (${formatDate(start)} to ${formatDate(end)})`;
+            } else if (type === 'all') {
+                document.getElementById('ro-start-date').value = '';
+                document.getElementById('ro-end-date').value = '';
+                roCurrentFilter.start_date = 'all';
+                roCurrentFilter.end_date = 'all';
+                roCurrentFilter.preset = 'all';
+                document.getElementById('ro-active-period-badge').textContent = "All Time";
+                refreshRODashboard();
+                return;
+            }
+
+            const startStr = formatDate(start);
+            const endStr = formatDate(end);
+            document.getElementById('ro-start-date').value = startStr;
+            document.getElementById('ro-end-date').value = endStr;
+            roCurrentFilter.start_date = startStr;
+            roCurrentFilter.end_date = endStr;
+            roCurrentFilter.preset = type;
+            document.getElementById('ro-active-period-badge').textContent = badgeText;
+            refreshRODashboard();
+        }
+
+        function clearROPresetHighlight() {
+            document.querySelectorAll('.ro-preset-btn').forEach(btn => {
+                btn.classList.remove('bg-sky-600', 'text-white');
+                btn.classList.add('bg-slate-100', 'text-slate-700');
+            });
+            roCurrentFilter.preset = 'custom';
+        }
+
+        function applyROFilter() {
+            clearROPresetHighlight();
+            const s = document.getElementById('ro-start-date').value;
+            const e = document.getElementById('ro-end-date').value;
+            roCurrentFilter.start_date = s;
+            roCurrentFilter.end_date = e;
+            roCurrentFilter.preset = 'custom';
+
+            if (s && e) {
+                document.getElementById('ro-active-period-badge').textContent = `${s} to ${e}`;
+            } else if (s) {
+                document.getElementById('ro-active-period-badge').textContent = `From ${s}`;
+            } else if (e) {
+                document.getElementById('ro-active-period-badge').textContent = `Until ${e}`;
+            } else {
+                document.getElementById('ro-active-period-badge').textContent = `All Time`;
+            }
+
+            refreshRODashboard();
+        }
+
+        function resetROFilters() {
+            setROPreset('today');
         }
 
         function formatDate(d) {
@@ -877,47 +1061,105 @@
 
         async function refreshRODashboard() {
             try {
-                const res = await fetch(`${API_BASE}/api/ro/stats`);
+                const params = new URLSearchParams();
+                const start = document.getElementById('ro-start-date')?.value || roCurrentFilter.start_date;
+                const end = document.getElementById('ro-end-date')?.value || roCurrentFilter.end_date;
+
+                if (roCurrentFilter.preset === 'all') {
+                    params.append('start_date', 'all');
+                } else {
+                    if (start) params.append('start_date', start);
+                    if (end) params.append('end_date', end);
+                }
+
+                const url = `${API_BASE}/api/ro/stats${params.toString() ? '?' + params.toString() : ''}`;
+                const res = await fetch(url);
                 if (!res.ok) return;
                 const data = await res.json();
 
-                document.getElementById('ro-stat-pending').textContent = data.total_disbursed_feed_count.toLocaleString();
-                document.getElementById('ro-stat-completed').textContent = data.total_completed_count.toLocaleString();
-                document.getElementById('ro-stat-total').textContent = data.total_tracked_loans.toLocaleString();
-                document.getElementById('ro-stat-team-rate').textContent = `${data.team_completion_rate}%`;
+                const totalLoans = data.total_tracked_loans || 0;
+                const completedCount = data.total_completed_count || 0;
+                const spilloverCount = data.total_spillover_count ?? data.total_disbursed_feed_count ?? 0;
+                const teamRate = data.team_completion_rate || 0.0;
+                const teamSpilloverRate = data.team_spillover_rate ?? (totalLoans > 0 ? Math.round((spilloverCount / totalLoans) * 100 * 10) / 10 : 0.0);
+
+                document.getElementById('ro-stat-total').textContent = totalLoans.toLocaleString();
+                document.getElementById('ro-stat-completed').textContent = completedCount.toLocaleString();
+                document.getElementById('ro-stat-pending').textContent = spilloverCount.toLocaleString();
+                document.getElementById('ro-stat-team-rate').textContent = `${teamRate}%`;
+
+                const spilloverTag = document.getElementById('ro-stat-spillover-tag');
+                if (spilloverTag) {
+                    if (spilloverCount === 0 && totalLoans > 0) {
+                        spilloverTag.className = "text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded";
+                        spilloverTag.textContent = "0 Spillover (Done)";
+                    } else if (spilloverCount > 0) {
+                        spilloverTag.className = "text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded";
+                        spilloverTag.textContent = `${spilloverCount} Spillover`;
+                    } else {
+                        spilloverTag.className = "text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded";
+                        spilloverTag.textContent = "No Assignments";
+                    }
+                }
+
+                const spilloverRateSub = document.getElementById('ro-stat-spillover-rate-sub');
+                if (spilloverRateSub) {
+                    spilloverRateSub.textContent = `${teamSpilloverRate}% spillover rate`;
+                }
 
                 // Update Manager Cards
-                const mgrs = data.managers;
-                
-                // Manager A
-                if (mgrs["Manager A"]) {
-                    const ma = mgrs["Manager A"];
-                    document.getElementById('ro-card-a-total').textContent = ma.total;
-                    document.getElementById('ro-card-a-pending').textContent = ma.pending;
-                    document.getElementById('ro-card-a-completed').textContent = ma.completed;
-                    document.getElementById('ro-card-a-rate').textContent = `${ma.completion_rate}%`;
-                    document.getElementById('ro-card-a-bar').style.width = `${ma.completion_rate}%`;
-                }
+                const mgrs = data.managers || {};
+                const managerConfigs = [
+                    { key: "Manager A", prefix: "ro-card-a" },
+                    { key: "Manager B", prefix: "ro-card-b" },
+                    { key: "Manager C", prefix: "ro-card-c" }
+                ];
 
-                // Manager B
-                if (mgrs["Manager B"]) {
-                    const mb = mgrs["Manager B"];
-                    document.getElementById('ro-card-b-total').textContent = mb.total;
-                    document.getElementById('ro-card-b-pending').textContent = mb.pending;
-                    document.getElementById('ro-card-b-completed').textContent = mb.completed;
-                    document.getElementById('ro-card-b-rate').textContent = `${mb.completion_rate}%`;
-                    document.getElementById('ro-card-b-bar').style.width = `${mb.completion_rate}%`;
-                }
+                managerConfigs.forEach(({ key, prefix }) => {
+                    const m = mgrs[key];
+                    if (!m) return;
 
-                // Manager C
-                if (mgrs["Manager C"]) {
-                    const mc = mgrs["Manager C"];
-                    document.getElementById('ro-card-c-total').textContent = mc.total;
-                    document.getElementById('ro-card-c-pending').textContent = mc.pending;
-                    document.getElementById('ro-card-c-completed').textContent = mc.completed;
-                    document.getElementById('ro-card-c-rate').textContent = `${mc.completion_rate}%`;
-                    document.getElementById('ro-card-c-bar').style.width = `${mc.completion_rate}%`;
-                }
+                    const totalEl = document.getElementById(`${prefix}-total`);
+                    const pendingEl = document.getElementById(`${prefix}-pending`);
+                    const completedEl = document.getElementById(`${prefix}-completed`);
+                    const rateEl = document.getElementById(`${prefix}-rate`);
+                    const barEl = document.getElementById(`${prefix}-bar`);
+                    const spilloverBadge = document.getElementById(`${prefix}-spillover-badge`);
+                    const btnSpillover = document.getElementById(`${prefix}-btn-spillover`);
+                    const btnCompleted = document.getElementById(`${prefix}-btn-completed`);
+
+                    const mTotal = m.total || 0;
+                    const mCompleted = m.completed || 0;
+                    const mSpillover = m.spillover ?? m.pending ?? 0;
+                    const mRate = m.completion_rate || 0.0;
+                    const mSpilloverRate = m.spillover_rate ?? (mTotal > 0 ? Math.round((mSpillover / mTotal) * 100 * 10) / 10 : 0.0);
+
+                    if (totalEl) totalEl.textContent = mTotal.toLocaleString();
+                    if (completedEl) completedEl.textContent = mCompleted.toLocaleString();
+                    if (pendingEl) pendingEl.textContent = mSpillover.toLocaleString();
+                    if (rateEl) rateEl.textContent = `${mRate}%`;
+                    if (barEl) barEl.style.width = `${mRate}%`;
+
+                    if (spilloverBadge) {
+                        if (mSpillover === 0 && mTotal > 0) {
+                            spilloverBadge.className = "text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block mt-0.5";
+                            spilloverBadge.textContent = "0 Spillover (100% Done)";
+                        } else if (mSpillover > 0) {
+                            spilloverBadge.className = "text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 inline-block mt-0.5";
+                            spilloverBadge.textContent = `${mSpillover} Spillover (${mSpilloverRate}%)`;
+                        } else {
+                            spilloverBadge.className = "text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 inline-block mt-0.5";
+                            spilloverBadge.textContent = "0 Assigned";
+                        }
+                    }
+
+                    if (btnSpillover) {
+                        btnSpillover.innerHTML = `View Spillover (${mSpillover}) →`;
+                    }
+                    if (btnCompleted) {
+                        btnCompleted.innerHTML = `View Completed (${mCompleted})`;
+                    }
+                });
             } catch (err) {
                 console.error("Failed to load RO stats:", err);
             }
@@ -1305,8 +1547,9 @@ Repayment: ₦${Math.round(l.total_repayment_amount || 0).toLocaleString()} (₦
 
         // Initialize application on load
         window.addEventListener('DOMContentLoaded', async () => {
-            await Promise.all([loadStats(), loadFilters(), refreshRODashboard()]);
+            setROPreset('today');
             setPreset('today');
+            await Promise.all([loadStats(), loadFilters(), refreshRODashboard()]);
             handleAutoRefreshChange(10800000);
         });
     </script>

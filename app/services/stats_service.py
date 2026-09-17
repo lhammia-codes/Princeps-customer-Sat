@@ -19,9 +19,20 @@ async def get_ro_dashboard_statistics(loan_ids: Optional[List[str]] = None) -> D
             "total_disbursed_feed_count": 0,
             "total_completed_count": 0,
             "total_tracked_loans": 0,
+            "total_spillover_count": 0,
             "team_completion_rate": 0.0,
+            "team_spillover_rate": 0.0,
             "managers": {
-                m: {"total": 0, "completed": 0, "not_contacted": 0, "sms_sent": 0, "pending": 0, "completion_rate": 0.0}
+                m: {
+                    "total": 0,
+                    "completed": 0,
+                    "not_contacted": 0,
+                    "sms_sent": 0,
+                    "pending": 0,
+                    "spillover": 0,
+                    "completion_rate": 0.0,
+                    "spillover_rate": 0.0
+                }
                 for m in MANAGERS
             }
         }
@@ -52,7 +63,16 @@ async def get_ro_dashboard_statistics(loan_ids: Optional[List[str]] = None) -> D
             """)
 
     manager_data = {
-        m: {"total": 0, "completed": 0, "not_contacted": 0, "sms_sent": 0, "pending": 0, "completion_rate": 0.0}
+        m: {
+            "total": 0,
+            "completed": 0,
+            "not_contacted": 0,
+            "sms_sent": 0,
+            "pending": 0,
+            "spillover": 0,
+            "completion_rate": 0.0,
+            "spillover_rate": 0.0
+        }
         for m in MANAGERS
     }
 
@@ -69,26 +89,33 @@ async def get_ro_dashboard_statistics(loan_ids: Optional[List[str]] = None) -> D
 
         if rm in manager_data:
             pending = tot - comp
+            spillover = pending
             rate = round((comp / tot * 100), 1) if tot > 0 else 0.0
+            spillover_rate = round((pending / tot * 100), 1) if tot > 0 else 0.0
             manager_data[rm] = {
                 "total": tot,
                 "completed": comp,
                 "not_contacted": not_cont,
                 "sms_sent": sms,
                 "pending": pending,
-                "completion_rate": rate
+                "spillover": spillover,
+                "completion_rate": rate,
+                "spillover_rate": spillover_rate
             }
             total_loans += tot
             total_completed += comp
             total_pending += pending
 
     team_rate = round((total_completed / total_loans * 100), 1) if total_loans > 0 else 0.0
+    team_spillover_rate = round((total_pending / total_loans * 100), 1) if total_loans > 0 else 0.0
 
     return {
         "total_disbursed_feed_count": total_pending,
         "total_completed_count": total_completed,
         "total_tracked_loans": total_loans,
+        "total_spillover_count": total_pending,
         "team_completion_rate": team_rate,
+        "team_spillover_rate": team_spillover_rate,
         "managers": manager_data
     }
 
@@ -106,27 +133,33 @@ async def fetch_ro_stats(
     params = []
     idx = 1
 
-    if clean_start:
-        try:
-            parsed_start = datetime.strptime(clean_start, "%Y-%m-%d").date()
-            clauses.append(f"COALESCE(disburse_at, created_at) >= ${idx}")
-            params.append(parsed_start)
-            idx += 1
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD.")
-    else:
-        clauses.append("COALESCE(disburse_at, created_at) >= CURRENT_DATE")
+    is_all_time = (clean_start and clean_start.lower() == "all") or (clean_end and clean_end.lower() == "all")
 
-    if clean_end:
-        try:
-            parsed_end = datetime.strptime(clean_end, "%Y-%m-%d").date()
-            clauses.append(f"COALESCE(disburse_at, created_at) < (${idx}::timestamp + interval '1 day')")
-            params.append(parsed_end)
-            idx += 1
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD.")
-    elif not clean_start:
-        clauses.append("COALESCE(disburse_at, created_at) < (CURRENT_DATE + interval '1 day')")
+    if is_all_time:
+        # No date filters applied for all-time view
+        pass
+    else:
+        if clean_start:
+            try:
+                parsed_start = datetime.strptime(clean_start, "%Y-%m-%d").date()
+                clauses.append(f"COALESCE(disburse_at, created_at) >= ${idx}")
+                params.append(parsed_start)
+                idx += 1
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD.")
+        elif not clean_end:
+            clauses.append("COALESCE(disburse_at, created_at) >= CURRENT_DATE")
+
+        if clean_end:
+            try:
+                parsed_end = datetime.strptime(clean_end, "%Y-%m-%d").date()
+                clauses.append(f"COALESCE(disburse_at, created_at) < (${idx}::timestamp + interval '1 day')")
+                params.append(parsed_end)
+                idx += 1
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD.")
+        elif not clean_start:
+            clauses.append("COALESCE(disburse_at, created_at) < (CURRENT_DATE + interval '1 day')")
 
     where_sql = " AND ".join(clauses)
     ids_query = f"""
@@ -141,7 +174,12 @@ async def fetch_ro_stats(
             loan_ids = [r['loan_id'] for r in id_rows if r['loan_id']]
 
             await get_or_assign_relationship_managers(loan_ids)
-            return await get_ro_dashboard_statistics(loan_ids=loan_ids)
+            stats = await get_ro_dashboard_statistics(loan_ids=loan_ids)
+            stats["period"] = {
+                "start_date": None if is_all_time else clean_start,
+                "end_date": None if is_all_time else clean_end
+            }
+            return stats
         except Exception as e:
             print(f"RO STATS QUERY ERROR: {str(e)}")
             raise HTTPException(status_code=500, detail=f"RO stats query failed: {str(e)}")

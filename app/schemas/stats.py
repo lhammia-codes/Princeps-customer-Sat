@@ -18,11 +18,16 @@ class ManagerPerformance(BaseModel):
     not_contacted: int
     sms_sent: int
     pending: int
+    spillover: int = 0
     completion_rate: float
+    spillover_rate: float = 0.0
 
 class ROStatsResponse(BaseModel):
     total_disbursed_feed_count: int
     total_completed_count: int
     total_tracked_loans: int
+    total_spillover_count: int = 0
     team_completion_rate: float
+    team_spillover_rate: float = 0.0
+    period: Optional[Dict[str, Optional[str]]] = None
     managers: Dict[str, ManagerPerformance]
